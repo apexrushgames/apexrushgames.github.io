@@ -2,97 +2,55 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>APEX RUSH - Drift Master</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;touch-action:none;font-family:Arial, sans-serif}
-body{background:#0a0a0f;overflow:hidden;color:white}
-#gameWrap{position:relative;width:100vw;height:100vh;max-width:480px;margin:0 auto;background:#111}
-canvas{width:100%;height:100%;display:block;background:linear-gradient(#1a1a2e 0%, #0f0f1e 100%)}
-#ui{position:absolute;top:0;left:0;width:100%;padding:15px;display:flex;justify-content:space-between;font-weight:bold;text-shadow:0 0 10px #00f5ff}
-#startScreen,#overScreen{position:absolute;inset:0;background:rgba(5,5,15,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:10}
+*{margin:0;padding:0;box-sizing:border-box;touch-action:none}
+body{background:#0a0a0f;overflow:hidden;color:white;font-family:Arial}
+#gameWrap{position:relative;width:100vw;height:100vh;max-width:500px;margin:auto;background:#111}
+canvas{width:100%;height:100%;display:block}
+#ui{position:absolute;top:0;left:0;width:100%;padding:12px;display:flex;justify-content:space-between;font-weight:bold;z-index:10}
+#startScreen,#overScreen{position:absolute;inset:0;background:rgba(5,5,10,0.95);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:20;text-align:center}
 #overScreen{display:none}
-h1{font-size:42px;letter-spacing:3px;background:linear-gradient(90deg,#00f5ff,#ff00e6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 15px #00f5ff)}
-h1 span{display:block;font-size:14px;letter-spacing:6px;color:#fff;-webkit-text-fill-color:#fff;margin-top:5px}
-p{opacity:0.7;margin:15px 0;font-size:14px}
-.btn{padding:16px 40px;background:linear-gradient(90deg,#00f5ff,#7000ff);border:none;border-radius:30px;color:white;font-size:18px;font-weight:bold;letter-spacing:2px;box-shadow:0 0 20px #00f5ff;cursor:pointer;margin-top:20px}
-#controls{position:absolute;bottom:0;left:0;width:100%;height:35%;display:flex;z-index:5}
-.ctrl{flex:1}
+h1{font-size:40px;background:linear-gradient(90deg,#00f5ff,#ff00ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.btn{padding:16px 40px;background:linear-gradient(90deg,#00f5ff,#7a00ff);border:none;border-radius:30px;color:white;font-size:18px;font-weight:bold;margin:8px}
+#adBox{width:90%;height:90px;background:#1a1a2e;border:1px dashed #555;display:flex;align-items:center;justify-content:center;margin:15px;border-radius:10px;color:#888;font-size:12px}
+#controls{position:absolute;bottom:0;left:0;width:100%;display:flex;z-index:10;height:35%}
+.ctrl{flex:1;display:flex;align-items:center;justify-content:center;font-size:30px;opacity:0.2}
+#nitro{position:absolute;right:15px;bottom:38%;z-index:11;width:70px;height:70px;border-radius:50%;background:radial-gradient(#ff3c00,#ff8c00);border:3px solid white;display:flex;align-items:center;justify-content:center;font-weight:bold}
 </style>
 </head>
 <body>
 <div id="gameWrap">
 <canvas id="game"></canvas>
-<div id="ui"><div id="score">SCORE: 0</div><div id="speed">120 KM/H</div></div>
-<div id="startScreen">
-<h1>APEX RUSH<span>DRIFT MASTER</span></h1>
-<p>SWIPE LEFT/RIGHT TO DRIFT<br>AVOID TRAFFIC - SURVIVE</p>
-<button class="btn" onclick="startGame()">START RUSH</button>
-<p style="font-size:11px;margin-top:30px">apex rush games © 2026</p>
-</div>
-<div id="overScreen">
-<h1 id="finalScore">0</h1>
-<p id="rankText">NICE TRY!</p>
-<button class="btn" onclick="startGame()">RETRY</button>
-</div>
-<div id="controls"><div class="ctrl" id="left"></div><div class="ctrl" id="right"></div></div>
+<div id="ui"><div id="score">SCORE: 0</div><div id="coins">COINS: 0</div></div>
+<div id="startScreen"><h1>APEX RUSH</h1><p>Collect coins, avoid cars!<br>Left/Right = Steer, NITRO = Boost</p><button class="btn" onclick="startGame()">START RUSH</button></div>
+<div id="overScreen"><h1>WRECKED!</h1><div id="finalScore" style="font-size:24px;margin:10px"></div><div id="adBox">AD SPACE - Yaha Ad se Paisa Aayega</div><button class="btn" onclick="startGame()">RETRY</button><button class="btn" style="background:#333" onclick="revive()">WATCH AD TO REVIVE</button></div>
+<div id="controls"><div class="ctrl" id="l">◀</div><div class="ctrl" id="r">▶</div></div><div id="nitro">NITRO</div>
 </div>
 <script>
-const canvas=document.getElementById('game');
-const ctx=canvas.getContext('2d');
-let W,H,player,obstacles,score,speed,gameActive,keys={};
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+let W,H,player,keys={},score=0,coins=0,running=false,speed=6,ents=[],t1=0,t2=0,high=localStorage.getItem('apexHigh')||0,ac;
 function resize(){W=canvas.width=canvas.offsetWidth*2;H=canvas.height=canvas.offsetHeight*2;}
-window.addEventListener('resize',resize);resize();
-class Player{
- constructor(){this.w=W*0.08;this.h=H*0.08;this.x=W/2-this.w/2;this.y=H*0.78;this.targetX=this.x;this.vx=0;}
- update(){this.vx+=(this.targetX-this.x)*0.15;this.vx*=0.8;this.x+=this.vx;this.x=Math.max(W*0.08,Math.min(W*0.92-this.w,this.x));}
- draw(){ctx.save();ctx.translate(this.x+this.w/2,this.y+this.h/2);ctx.rotate(this.vx*0.04);ctx.shadowBlur=20;ctx.shadowColor='#00f5ff';ctx.fillStyle='#00f5ff';ctx.fillRect(-this.w/2,-this.h/2,this.w,this.h);ctx.fillStyle='white';ctx.fillRect(-this.w/3,-this.h/2,this.w/1.5,this.h*0.3);ctx.restore();}
+resize(); window.addEventListener('resize',resize);
+function tone(f,d){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);g.gain.value=0.2;o.start();g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);o.stop(ac.currentTime+d);}
+function startGame(){document.getElementById('startScreen').style.display='none';document.getElementById('overScreen').style.display='none';player={x:W/2-40,y:H-300,w:80,h:140};ents=[];score=0;speed=6;t1=0;t2=0;running=true;coins=parseInt(localStorage.getItem('apexCoins')||0);loop();tone(440,0.3);}
+function spawnE(){const lw=W/3,l=Math.floor(Math.random()*3);ents.push({t:'e',x:l*lw+lw*0.15,y:-200,w:lw*0.7,h:130,c:`hsl(${200+Math.random()*60},100%,60%)`});}
+function spawnC(){const lw=W/3,l=Math.floor(Math.random()*3);ents.push({t:'c',x:l*lw+lw*0.4,y:-100,w:40,h:40});}
+function loop(){if(!running)return;requestAnimationFrame(loop);ctx.clearRect(0,0,W,H);ctx.fillStyle='#222';ctx.fillRect(W*0.05,0,W*0.9,H);ctx.fillStyle='#333';for(let i=0;i<H;i+=80){ctx.fillRect(W*0.33,i+Date.now()*0.5%80,10,40);ctx.fillRect(W*0.66,i+Date.now()*0.5%80,10,40);}
+if(keys.left||keys.ArrowLeft||keys.a)player.x-=18;if(keys.right||keys.ArrowRight||keys.d)player.x+=18;player.x=Math.max(W*0.05,Math.min(W*0.95-player.w,player.x));
+t1++;t2++;if(t1>60-Math.min(40,score/20)){spawnE();t1=0;}if(t2>40){spawnC();t2=0;}
+for(let i=ents.length-1;i>=0;i--){let e=ents[i];e.y+=speed;if(e.t=='e'){ctx.fillStyle=e.c;ctx.fillRect(e.x,e.y,e.w,e.h);if(player.x<e.x+e.w&&player.x+player.w>e.x&&player.y<e.y+e.h&&player.y+player.h>e.y){gameOver();return;}}else{ctx.beginPath();ctx.arc(e.x+20,e.y+20,18,0,Math.PI*2);ctx.fillStyle='#FFD700';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();if(player.x<e.x+e.w&&player.x+player.w>e.x&&player.y<e.y+e.h&&player.y+player.h>e.y){coins++;score+=20;ents.splice(i,1);tone(800,0.2);localStorage.setItem('apexCoins',coins);continue;}}if(e.y>H){ents.splice(i,1);if(e.t=='e')score+=10;}}
+ctx.fillStyle='#00f5ff';ctx.fillRect(player.x,player.y,player.w,player.h);ctx.fillStyle='#fff';ctx.fillRect(player.x+10,player.y+10,player.w-20,20);
+score+=0.2;speed+=0.002;document.getElementById('score').textContent='SCORE: '+Math.floor(score)+' | BEST: '+Math.floor(Math.max(score,high));document.getElementById('coins').textContent='COINS: '+coins;
 }
-function startGame(){
- document.getElementById('startScreen').style.display='none';
- document.getElementById('overScreen').style.display='none';
- player=new Player();obstacles=[];score=0;speed=6;gameActive=true;loop();
-}
-function spawn(){const lane=Math.random()>0.5?1:0;const w=W*0.08;const x=lane?W*0.15+Math.random()*W*0.3:W*0.55+Math.random()*W*0.3;obstacles.push({x,y:-H*0.1,w,h:H*0.08+Math.random()*H*0.04,color:Math.random()>0.5?'#ff0055':'#ffcc00'});}
-function loop(){
- if(!gameActive)return;
- ctx.clearRect(0,0,W,H);
- // road
- ctx.fillStyle='#1e1e2f';ctx.fillRect(W*0.1,0,W*0.8,H);
- ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.setLineDash([20,20]);ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();ctx.setLineDash([]);
- ctx.strokeStyle='#00f5ff';ctx.lineWidth=6;ctx.shadowBlur=10;ctx.shadowColor='#00f5ff';ctx.strokeRect(W*0.1,0,W*0.8,H);ctx.shadowBlur=0;
- player.targetX=player.x;
- if(keys.left)player.targetX-=W*0.02;
- if(keys.right)player.targetX+=W*0.02;
- player.update();player.draw();
- if(Math.random()<0.025+score*0.0001)spawn();
- for(let i=obstacles.length-1;i>=0;i--){
-  let o=obstacles[i];o.y+=speed;ctx.fillStyle=o.color;ctx.shadowBlur=15;ctx.shadowColor=o.color;ctx.fillRect(o.x,o.y,o.w,o.h);ctx.shadowBlur=0;
-  if(o.y>H+50){obstacles.splice(i,1);score+=10;}
-  if(o.x<player.x+player.w&&o.x+o.w>player.x&&o.y<player.y+player.h&&o.y+o.h>player.y){gameOver();}
- }
- score+=0.2;speed+=0.001;
- document.getElementById('score').innerText='SCORE: '+Math.floor(score);
- document.getElementById('speed').innerText=Math.floor(120+speed*12)+' KM/H';
- requestAnimationFrame(loop);
-}
-function gameOver(){
- gameActive=false;
- document.getElementById('overScreen').style.display='flex';
- document.getElementById('finalScore').innerText=Math.floor(score);
- let r=score<300?"ROOKIE":score<800?"RACER":score<1500?"DRIFT KING":"APEX LEGEND";
- document.getElementById('rankText').innerText=r;
-}
-// controls
-document.getElementById('left').addEventListener('touchstart',()=>keys.left=true);
-document.getElementById('left').addEventListener('touchend',()=>keys.left=false);
-document.getElementById('right').addEventListener('touchstart',()=>keys.right=true);
-document.getElementById('right').addEventListener('touchend',()=>keys.right=false);
-let sx=0;canvas.addEventListener('touchstart',e=>sx=e.touches[0].clientX);
-canvas.addEventListener('touchmove',e=>{let dx=e.touches[0].clientX-sx;if(dx<-20)keys.left=true,keys.right=false;else if(dx>20)keys.right=true,keys.left=false;});
-canvas.addEventListener('touchend',()=>{keys.left=false;keys.right=false;});
-window.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')keys.left=true;if(e.key==='ArrowRight')keys.right=true;});
-window.addEventListener('keyup',e=>{if(e.key==='ArrowLeft')keys.left=false;if(e.key==='ArrowRight')keys.right=false;});
+function gameOver(){running=false;if(score>high){high=score;localStorage.setItem('apexHigh',high);}document.getElementById('finalScore').textContent='Score: '+Math.floor(score)+' | Best: '+Math.floor(high);document.getElementById('overScreen').style.display='flex';tone(150,0.8);}
+function revive(){document.getElementById('overScreen').style.display='none';ents=ents.filter(e=>e.y>H-500);running=true;loop();}
+function k(v,s){keys[v]=s;}
+window.addEventListener('keydown',e=>k(e.key,true));window.addEventListener('keyup',e=>k(e.key,false));
+l.addEventListener('touchstart',()=>k('left',true));l.addEventListener('touchend',()=>k('left',false));
+r.addEventListener('touchstart',()=>k('right',true));r.addEventListener('touchend',()=>k('right',false));
+nitro.addEventListener('touchstart',()=>{speed=13;});nitro.addEventListener('touchend',()=>{speed=6;});
 </script>
 </body>
 </html>
